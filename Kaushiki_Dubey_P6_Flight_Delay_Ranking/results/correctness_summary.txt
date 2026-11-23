@@ -1,0 +1,27 @@
+P6 Flight Delay Ranking correctness summary
+Generated November 22, 2026
+
+Focused unit tests
+------------------
+7 tests passed:
+- empty file
+- single flight
+- all equal delays
+- negative and positive delays
+- duplicate-delay stability
+- already ranked input
+- reverse-ranked input
+
+Supplied harness
+----------------
+All four algorithms passed every suitable supplied dataset tested:
+- 15 schedule records
+- 1,000 schedule records
+- 10,000 schedule records
+- 10,000 nearly sorted records
+- 10,000 reversed records
+- 100,000 schedule records for merge, heap, and counting
+- 100,000 nearly sorted records for insertion, merge, heap, and counting
+
+The validator confirmed that every output contains each flight ID exactly once,
+uses descending arrival delay, and preserves original file order among ties.
