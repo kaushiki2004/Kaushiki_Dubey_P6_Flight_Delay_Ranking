@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Delay Ranking Race</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout idea: an airport departure board. A live race first, then a stability lab, then measured evidence, then the verdict. */
+  --bg:#0c1520; --panel:#132130; --panel2:#192c3f; --line:#27394d;
+  --text:#e9f0f7; --mute:#9bb0c4; --amber:#ffb627; --teal:#34c3ae; --red:#ff6b57; --blue:#8fa8ff;
+  --display:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+  --body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'DM Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body);font-size:17px;line-height:1.5}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+header.top{padding:44px 0 20px}
+.byline{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--mute);text-transform:uppercase}
+h1{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:clamp(46px,9.5vw,112px);line-height:.92;letter-spacing:.01em;margin:10px 0 14px;text-wrap:balance}
+h1 em{font-style:normal;color:var(--amber)}
+.lede{max-width:62ch;color:var(--mute);font-size:19px;margin:0}
+h2{font-family:var(--display);font-weight:700;text-transform:uppercase;font-size:clamp(30px,4.5vw,44px);line-height:1;margin:0 0 8px;letter-spacing:.01em;text-wrap:balance}
+section{padding:36px 0 14px;border-top:1px solid var(--line);margin-top:26px}
+section.first{border-top:0;margin-top:0}
+.sub{max-width:68ch;color:var(--mute);margin:0 0 18px}
+
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.ctl{display:flex;flex-direction:column;gap:5px;min-width:150px}
+.ctl label{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.ctl output{color:var(--text)}
+input[type=range]{accent-color:var(--amber);width:100%}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 8px;font:inherit;font-size:15px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+button{font:inherit;font-weight:600;font-size:15px;border-radius:6px;padding:9px 15px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
+button:hover{border-color:var(--mute)}
+button.primary{background:var(--amber);color:#1a1200;border-color:var(--amber)}
+button.primary:hover{filter:brightness(1.08)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+.lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:820px){.lanes{grid-template-columns:1fr}.btns{margin-left:0}}
+.lane{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px 12px;position:relative}
+.lane.win{border-color:var(--amber)}
+.lhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.lname{font-family:var(--display);font-weight:700;font-size:26px;text-transform:uppercase;letter-spacing:.02em}
+.lbig{font-family:var(--mono);font-size:13px;color:var(--mute)}
+.lane canvas{width:100%;height:150px;display:block;margin:8px 0;background:#0e1a27;border-radius:4px}
+.lstats{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;color:var(--mute)}
+.lstats b{color:var(--text);font-weight:500}
+.place{position:absolute;right:12px;top:42px;font-family:var(--display);font-weight:700;font-size:30px;line-height:1;padding:5px 11px;border-radius:5px;background:var(--panel2);color:var(--text);display:none;text-transform:uppercase}
+.lane.done .place{display:block}
+.lane.win .place{background:var(--amber);color:#1a1200}
+.ok{font-family:var(--mono);font-size:12px;color:var(--teal);margin-top:6px;min-height:18px}
+.note{margin:14px 0 0;font-size:18px;min-height:28px}
+.note b{color:var(--amber);font-family:var(--mono);font-weight:500}
+.legend{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:10px}
+.ramp{height:8px;width:160px;border-radius:4px;background:linear-gradient(90deg,hsl(172,75%,55%),hsl(100,75%,55%),hsl(42,75%,55%),hsl(8,75%,55%))}
+
+.track-scroll{overflow-x:auto;padding:6px 0 10px}
+.track{position:relative;height:76px}
+.chip{position:absolute;top:4px;width:76px;height:68px;border-radius:6px;color:#0c1520;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);transition:left .3s ease,outline-color .2s;outline:3px solid transparent;outline-offset:1px}
+.chip b{font-size:21px;font-weight:500;line-height:1.05}
+.chip span{font-size:12px}
+.chip.bad{outline-color:#fff}
+.verdict{font-size:18px;margin:6px 0 0;min-height:56px}
+.verdict .yes{color:var(--teal);font-weight:600}
+.verdict .no{color:var(--red);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--panel);color:var(--mute);font-weight:500;padding:8px 13px}
+.seg button[aria-pressed=true]{background:var(--panel2);color:var(--text);box-shadow:inset 0 -3px 0 var(--amber)}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px}
+
+.chartbox{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px;position:relative}
+.chartbox svg{width:100%;height:auto;display:block}
+.chartbox text{fill:var(--mute);font-family:var(--mono);font-size:12px}
+.keys{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:12.5px;margin:2px 0 8px}
+.keys span{display:inline-flex;align-items:center;gap:6px}
+.keys i{width:11px;height:11px;border-radius:2px;display:inline-block}
+.tip{position:absolute;pointer-events:none;background:#0b131c;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:12px;min-width:170px;display:none;z-index:2}
+.tip div{display:flex;justify-content:space-between;gap:14px}
+.tip .h{color:var(--mute);margin-bottom:4px}
+.take{margin:12px 0 0;font-size:18px}
+.take b{color:var(--amber);font-family:var(--mono);font-weight:500}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px;margin-top:10px}
+th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:500}
+.tscroll{overflow-x:auto}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:8px;padding:14px 16px}
+.card h3{font-family:var(--display);font-weight:700;font-size:26px;text-transform:uppercase;margin:0}
+.card .tag{font-family:var(--mono);font-size:12px;color:var(--c);text-transform:uppercase;letter-spacing:.06em;margin:2px 0 8px}
+.card p{margin:0;color:var(--mute);font-size:16px}
+footer{padding:30px 0 50px;color:var(--mute);font-size:14px;border-top:1px solid var(--line);margin-top:34px}
+@media (prefers-reduced-motion:reduce){.chip{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="byline">P6 Flight Delay Ranking &middot; Kaushiki Dubey</div>
+  <h1>Who gets <em>rebooked</em> first?</h1>
+  <p class="lede">Late flights need ranking from the worst arrival delay to the best, and equal delays must keep their original file order. Four handwritten algorithms solve it. Watch them race on the same flights.</p>
+</header>
+
+<section class="first" id="race">
+  <h2>The race</h2>
+  <p class="sub">Every bar is a flight, colored by delay. Each lane runs the real algorithm and advances the same number of steps per frame, where a step is one comparison or one write. Counters use the same accounting as <code>my_solutions.py</code>.</p>
+  <div class="controls">
+    <div class="ctl"><label for="n">Flights: <output id="nOut">120</output></label><input id="n" type="range" min="20" max="300" step="10" value="120"></div>
+    <div class="ctl"><label for="kind">Input order</label>
+      <select id="kind">
+        <option value="random">Random delays</option>
+        <option value="nearly">Nearly ranked already</option>
+        <option value="reversed">Reversed (worst case)</option>
+        <option value="ties">Many equal delays</option>
+      </select></div>
+    <div class="ctl"><label for="speed">Speed: <output id="speedOut">8</output> steps/frame</label><input id="speed" type="range" min="1" max="60" value="8"></div>
+    <div class="btns">
+      <button id="play" class="primary" type="button">Pause</button>
+      <button id="restart" type="button">Restart</button>
+      <button id="fresh" type="button">New flights</button>
+      <button id="skip" type="button">Skip to end</button>
+    </div>
+  </div>
+  <div class="lanes" id="lanes"></div>
+  <p class="note" id="raceNote" aria-live="polite"></p>
+  <div class="legend"><span>short delay</span><span class="ramp"></span><span>long delay</span></div>
+</section>
+
+<section id="stable">
+  <h2>Why ties are the hard part</h2>
+  <p class="sub">Plain heapsort can swap flights that have the same delay. Your version breaks ties by original position. Flip the switch and sort the same flights both ways. Same color means same delay.</p>
+  <div class="row">
+    <div class="seg" role="group" aria-label="Heapsort variant">
+      <button type="button" id="vStable" aria-pressed="true">Tie-break by position</button>
+      <button type="button" id="vPlain" aria-pressed="false">Plain heapsort</button>
+    </div>
+    <div class="seg" role="group" aria-label="Flight set">
+      <button type="button" id="sSmall" aria-pressed="true">5 flights</button>
+      <button type="button" id="sBig" aria-pressed="false">12 flights</button>
+    </div>
+    <button type="button" id="sortBtn" class="primary">Sort them</button>
+    <button type="button" id="resetBtn">Reset</button>
+  </div>
+  <div class="track-scroll"><div class="track" id="track"></div></div>
+  <p class="verdict" id="verdict" aria-live="polite">Flights start in file order, F0 first. Press Sort them.</p>
+</section>
+
+<section id="evidence">
+  <h2>What the benchmarks measured</h2>
+  <p class="sub">Numbers come straight from the three result files in the repo. Hover or tap the chart to read exact values.</p>
+  <div class="row">
+    <div class="seg" role="group" aria-label="Experiment" id="expSeg">
+      <button type="button" data-exp="scale" aria-pressed="true">Growing size</button>
+      <button type="button" data-exp="order" aria-pressed="false">Input order</button>
+      <button type="button" data-exp="range" aria-pressed="false">Delay range</button>
+    </div>
+    <div class="seg" role="group" aria-label="Metric" id="metSeg">
+      <button type="button" data-met="time" aria-pressed="true">Time</button>
+      <button type="button" data-met="cmp" aria-pressed="false">Comparisons</button>
+      <button type="button" data-met="wr" aria-pressed="false">Writes</button>
+      <button type="button" data-met="mem" aria-pressed="false">Memory</button>
+    </div>
+  </div>
+  <div class="chartbox">
+    <div class="keys" id="keys"></div>
+    <div id="chart"></div>
+    <div class="tip" id="tip"></div>
+  </div>
+  <div class="tscroll" id="tblHost"></div>
+  <p class="take" id="take"></p>
+</section>
+
+<section id="verdict2">
+  <h2>The recommendation</h2>
+  <p class="sub">Which one to use depends on the key range and what you are short of.</p>
+  <div class="cards">
+    <div class="card" style="--c:var(--amber)"><h3>Counting sort</h3><div class="tag">Best fit here</div><p>Delays are small integers in a bounded range. 3.4 ms for 10,000 flights and 37 ms for 100,000. Costs extra memory as the range grows.</p></div>
+    <div class="card" style="--c:var(--teal)"><h3>Mergesort</h3><div class="tag">Safe for any range</div><p>Stable by construction and independent of the key range. 0.96 s for 100,000 flights. Needs about n extra slots.</p></div>
+    <div class="card" style="--c:var(--blue)"><h3>Heapsort</h3><div class="tag">Predictable and lean</div><p>Same speed on random, nearly ranked and reversed input (0.11 s at 10,000). Smaller peak memory than mergesort. Needs the position tie-break to stay stable.</p></div>
+    <div class="card" style="--c:var(--red)"><h3>Insertion sort</h3><div class="tag">Small jobs only</div><p>Simple and light on memory, but it swings from 0.24 s to 17.8 s at 10,000 flights depending on the input order. Never the fastest in these runs.</p></div>
+  </div>
+  <div class="tscroll">
+  <table>
+    <thead><tr><th>Algorithm</th><th>Time</th><th>Extra space</th><th>Stable</th></tr></thead>
+    <tbody>
+      <tr><td>Insertion</td><td>&Theta;(n) best, &Theta;(n&sup2;) worst</td><td>&Theta;(1)</td><td>Yes</td></tr>
+      <tr><td>Heapsort</td><td>&Theta;(n log n)</td><td>&Theta;(1)</td><td>With position tie-break</td></tr>
+      <tr><td>Mergesort</td><td>&Theta;(n log n)</td><td>&Theta;(n)</td><td>Yes</td></tr>
+      <tr><td>Counting</td><td>&Theta;(n + R)</td><td>&Theta;(n + R)</td><td>Yes</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>Benchmark figures are from <code>results/scaling_results.csv</code>, <code>input_order_results.csv</code> and <code>key_range_results.csv</code>. The race replays the four algorithms in JavaScript on synthetic flights, so its step counts illustrate the growth rates rather than reproduce the Python runs.</footer>
+</div>
+
+<script>
+// ALGO-START
+function before(s,a,b){ s.stats.comparisons++; var da=s.delay[a], db=s.delay[b]; return da>db||(da===db&&a<b); }
+function* insertion(s){
+  var o=s.order,n=s.n;
+  for(var i=1;i<n;i++){
+    var cur=o[i], j=i-1;
+    while(j>=0){
+      var b=before(s,cur,o[j]); s.hi=[j,j+1]; yield;
+      if(!b) break;
+      o[j+1]=o[j]; s.stats.writes++; s.hi=[j+1]; yield;
+      j--;
+    }
+    o[j+1]=cur; s.stats.writes++; s.hi=[j+1]; yield;
+  }
+  s.hi=[];
+}
+function* mergesort(s){
+  var o=s.order,n=s.n,t=new Array(n).fill(0);
+  function* ms(lo,hi){
+    if(hi-lo<=1) return;
+    var mid=(lo+hi)>>1;
+    yield* ms(lo,mid); yield* ms(mid,hi);
+    s.region=[lo,hi];
+    var l=lo,r=mid,out=lo;
+    while(l<mid&&r<hi){
+      var b=before(s,o[l],o[r]); s.hi=[l,r]; yield;
+      if(b){t[out]=o[l];l++;}else{t[out]=o[r];r++;}
+      s.stats.writes++; s.hi=[out]; yield; out++;
+    }
+    while(l<mid){t[out]=o[l];s.stats.writes++;l++;s.hi=[out];yield;out++;}
+    while(r<hi){t[out]=o[r];s.stats.writes++;r++;s.hi=[out];yield;out++;}
+    for(var k=lo;k<hi;k++){o[k]=t[k];s.stats.writes++;s.hi=[k];yield;}
+  }
+  yield* ms(0,n);
+  s.region=null; s.hi=[];
+}
+function* heapsort(s){
+  var o=s.order,n=s.n;
+  function after(a,b){ return before(s,b,a); }
+  function swap(a,b){ var x=o[a];o[a]=o[b];o[b]=x; s.stats.writes+=2; }
+  function* sift(root,end){
+    while(true){
+      var c=2*root+1;
+      if(c>end) return;
+      if(c+1<=end){ var x=after(o[c+1],o[c]); s.hi=[c,c+1]; yield; if(x) c++; }
+      var y=after(o[c],o[root]); s.hi=[c,root]; yield;
+      if(!y) return;
+      swap(root,c); s.hi=[root,c]; yield;
+      root=c;
+    }
+  }
+  for(var r=(n>>1)-1;r>=0;r--) yield* sift(r,n-1);
+  for(var end=n-1;end>0;end--){
+    swap(0,end); s.sortedFrom=end; s.hi=[0,end]; yield;
+    yield* sift(0,end-1);
+  }
+  s.sortedFrom=0; s.hi=[];
+}
+function* counting(s){
+  var n=s.n,d=s.delay,mn=d[0],mx=d[0];
+  for(var i=1;i<n;i++){ if(d[i]<mn)mn=d[i]; if(d[i]>mx)mx=d[i]; }
+  var counts=new Array(mx-mn+1).fill(0);
+  for(var i2=0;i2<n;i2++) counts[d[i2]-mn]++;
+  var starts=new Array(counts.length).fill(0), p=0;
+  for(var b=counts.length-1;b>=0;b--){ starts[b]=p; p+=counts[b]; }
+  s.ghost=s.order.slice(); s.order=new Array(n).fill(-1);
+  for(var k=0;k<n;k++){
+    var bk=d[k]-mn;
+    s.order[starts[bk]]=k; starts[bk]++; s.stats.writes++;
+    s.hi=[starts[bk]-1]; yield;
+  }
+  s.ghost=null; s.hi=[];
+}
+function makeDelays(n,kind,seed){
+  var a=seed>>>0;
+  function r(){ a=(a+0x6D2B79F5)|0; var t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return((t^(t>>>14))>>>0)/4294967296; }
+  var d=[];
+  for(var i=0;i<n;i++) d.push(Math.round(-15+Math.pow(r(),2.2)*195));
+  if(kind==='ties'){ var vals=[-5,10,25,60,120,180]; d=d.map(function(){return vals[Math.floor(r()*vals.length)];}); }
+  else if(kind==='nearly'){ d.sort(function(x,y){return y-x;}); var sw=Math.max(2,Math.round(n*0.04)); for(var k=0;k<sw;k++){ var i1=Math.floor(r()*n), j1=Math.min(n-1,i1+1+Math.floor(r()*3)); var tmp=d[i1];d[i1]=d[j1];d[j1]=tmp; } }
+  else if(kind==='reversed'){ d.sort(function(x,y){return x-y;}); }
+  return d;
+}
+function heapSnapshots(delay,stable){
+  var n=delay.length,o=[],snaps;
+  for(var i=0;i<n;i++) o.push(i);
+  snaps=[o.slice()];
+  function less(a,b){ return stable ? (delay[a]<delay[b]||(delay[a]===delay[b]&&a>b)) : delay[a]<delay[b]; }
+  function sift(r,end){
+    for(;;){
+      var c=2*r+1;
+      if(c>end) return;
+      if(c+1<=end&&less(o[c+1],o[c])) c++;
+      if(!less(o[c],o[r])) return;
+      var t=o[r];o[r]=o[c];o[c]=t; snaps.push(o.slice()); r=c;
+    }
+  }
+  for(var r2=(n>>1)-1;r2>=0;r2--) sift(r2,n-1);
+  for(var e=n-1;e>0;e--){ var t2=o[0];o[0]=o[e];o[e]=t2; snaps.push(o.slice()); sift(0,e-1); }
+  return snaps;
+}
+// ALGO-END
+
+function color(t){ t=Math.max(0,Math.min(1,t)); var h=t<.5?172-(t/.5)*130:42-((t-.5)/.5)*34; return 'hsl('+h.toFixed(0)+',75%,55%)'; }
+var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- Race ---------- */
+var ALGOS=[
+  {key:'insertion',name:'Insertion sort',big:'Θ(n²)',fn:insertion},
+  {key:'merge',name:'Mergesort',big:'Θ(n log n)',fn:mergesort},
+  {key:'heap',name:'Heapsort',big:'Θ(n log n)',fn:heapsort},
+  {key:'counting',name:'Counting sort',big:'Θ(n + R)',fn:counting}
+];
+var lanesEl=document.getElementById('lanes');
+ALGOS.forEach(function(a){
+  var d=document.createElement('div'); d.className='lane'; d.id='lane-'+a.key;
+  d.innerHTML='<div class="lhead"><span class="lname">'+a.name+'</span><span class="lbig">'+a.big+'</span></div>'+
+    '<div class="place"></div><canvas></canvas>'+
+    '<div class="lstats"><span>comparisons <b data-k="c">0</b></span><span>writes <b data-k="w">0</b></span><span>steps <b data-k="o">0</b></span></div>'+
+    '<div class="ok" data-k="ok"></div>';
+  lanesEl.appendChild(d); a.el=d; a.cv=d.querySelector('canvas'); a.ctx=a.cv.getContext('2d');
+});
+var R={running:false,delay:[],n:120,seed:7,finished:0,mn:0,mx:1};
+function sizeCanvas(a){
+  var dpr=window.devicePixelRatio||1, w=a.cv.clientWidth, h=a.cv.clientHeight;
+  if(a.cv.width!==Math.round(w*dpr)||a.cv.height!==Math.round(h*dpr)){ a.cv.width=Math.round(w*dpr); a.cv.height=Math.round(h*dpr); }
+  a.ctx.setTransform(dpr,0,0,dpr,0,0); a.w=w; a.h=h;
+}
+function draw(a){
+  sizeCanvas(a);
+  var c=a.ctx,s=a.s,w=a.w,h=a.h,n=s.n,bw=w/n,span=Math.max(1,R.mx-R.mn)+10;
+  c.clearRect(0,0,w,h);
+  function bar(i,idx,alpha){
+    var v=R.delay[idx], hh=Math.max(2,(v-R.mn+10)/span*(h-6));
+    c.globalAlpha=alpha; c.fillStyle=color((v-R.mn)/Math.max(1,R.mx-R.mn));
+    c.fillRect(i*bw+(bw>3?0.5:0),h-hh,Math.max(1,bw-(bw>3?1:0)),hh);
+  }
+  if(s.ghost){ for(var g=0;g<n;g++) bar(g,s.ghost[g],0.16); }
+  if(s.region){ c.globalAlpha=1; c.fillStyle='rgba(255,255,255,0.07)'; c.fillRect(s.region[0]*bw,0,(s.region[1]-s.region[0])*bw,h); }
+  for(var i=0;i<n;i++){ var idx=s.order[i]; if(idx>=0) bar(i,idx,1); }
+  c.globalAlpha=1; c.fillStyle='#ffffff';
+  for(var q=0;q<s.hi.length;q++){ var p=s.hi[q]; c.fillRect(p*bw,0,Math.max(1.5,bw),h); c.globalAlpha=.9; }
+  c.globalAlpha=1;
+  if(s.sortedFrom!=null&&s.sortedFrom<n){ c.fillStyle='#ffb627'; c.fillRect(s.sortedFrom*bw,h-2,(n-s.sortedFrom)*bw,2); }
+}
+function setStats(a){
+  var s=a.s,q=a.el.querySelectorAll('[data-k]');
+  q[0].textContent=s.stats.comparisons.toLocaleString();
+  q[1].textContent=s.stats.writes.toLocaleString();
+  q[2].textContent=s.steps.toLocaleString();
+}
+function resetRace(newSeed){
+  if(newSeed) R.seed=(R.seed*1664525+1013904223)>>>0;
+  R.n=+document.getElementById('n').value;
+  R.delay=makeDelays(R.n,document.getElementById('kind').value,R.seed);
+  R.mn=Math.min.apply(null,R.delay); R.mx=Math.max.apply(null,R.delay);
+  R.finished=0; document.getElementById('raceNote').innerHTML='';
+  ALGOS.forEach(function(a){
+    var order=[]; for(var i=0;i<R.n;i++) order.push(i);
+    a.s={n:R.n,delay:R.delay,order:order,stats:{comparisons:0,writes:0},hi:[],region:null,sortedFrom:null,ghost:null,steps:0,done:false};
+    a.gen=a.fn(a.s);
+    a.el.classList.remove('done','win'); a.el.querySelector('.place').textContent=''; a.el.querySelector('[data-k=ok]').textContent='';
+    setStats(a); draw(a);
+  });
+  R.running=!reduced; syncPlay();
+  if(R.running) requestAnimationFrame(tick);
+}
+function ordinal(k){ return ['1st','2nd','3rd','4th'][k-1]; }
+function finish(a){
+  var s=a.s; s.done=true; s.hi=[]; R.finished++;
+  var exp=[]; for(var i=0;i<s.n;i++) exp.push(i);
+  exp.sort(function(x,y){return R.delay[y]-R.delay[x]||x-y;});
+  var good=true; for(var j=0;j<s.n;j++){ if(s.order[j]!==exp[j]){good=false;break;} }
+  a.el.classList.add('done'); if(R.finished===1) a.el.classList.add('win');
+  a.el.querySelector('.place').textContent=ordinal(R.finished);
+  a.el.querySelector('[data-k=ok]').textContent=good?'✓ correct ranking, ties in file order':'✗ ranking does not match';
+  setStats(a); draw(a);
+}
+function allDone(){
+  R.running=false; syncPlay();
+  var rows=ALGOS.map(function(a){return {n:a.name,o:a.s.steps};}).sort(function(x,y){return x.o-y.o;});
+  var f=rows[0],l=rows[rows.length-1];
+  document.getElementById('raceNote').innerHTML='<b>'+f.n+'</b> needed '+f.o.toLocaleString()+' steps. <b>'+l.n+'</b> needed '+l.o.toLocaleString()+' ('+(l.o/f.o).toFixed(l.o/f.o>=10?0:1)+'× more).';
+}
+function tick(){
+  if(!R.running) return;
+  var k=+document.getElementById('speed').value;
+  for(var ai=0;ai<ALGOS.length;ai++){
+    var a=ALGOS[ai]; if(a.s.done) continue;
+    for(var i=0;i<k;i++){ var r=a.gen.next(); if(r.done){ finish(a); break; } a.s.steps++; }
+    setStats(a); draw(a);
+  }
+  if(R.finished===ALGOS.length){ allDone(); return; }
+  requestAnimationFrame(tick);
+}
+function syncPlay(){
+  var b=document.getElementById('play');
+  b.textContent=R.finished===ALGOS.length?'Run again':(R.running?'Pause':'Start');
+}
+document.getElementById('play').onclick=function(){
+  if(R.finished===ALGOS.length){ resetRace(false); return; }
+  R.running=!R.running; syncPlay(); if(R.running) requestAnimationFrame(tick);
+};
+document.getElementById('restart').onclick=function(){ resetRace(false); };
+document.getElementById('fresh').onclick=function(){ resetRace(true); };
+document.getElementById('skip').onclick=function(){
+  ALGOS.forEach(function(a){
+    if(a.s.done) return;
+    while(true){ var r=a.gen.next(); if(r.done) break; a.s.steps++; }
+    finish(a);
+  });
+  allDone();
+};
+document.getElementById('n').oninput=function(){ document.getElementById('nOut').textContent=this.value; resetRace(false); };
+document.getElementById('kind').onchange=function(){ resetRace(false); };
+document.getElementById('speed').oninput=function(){ document.getElementById('speedOut').textContent=this.value; };
+window.addEventListener('resize',function(){ ALGOS.forEach(draw); });
+
+/* ---------- Stability lab ---------- */
+var LAB={sets:{small:[5,20,5,20,5],big:[20,5,35,5,20,20,5,35,5,20,35,5]},cur:'small',stable:true,timer:null};
+var track=document.getElementById('track'),verdict=document.getElementById('verdict');
+function labColor(v,all){ var mn=Math.min.apply(null,all),mx=Math.max.apply(null,all); return color(mx===mn?0:(v-mn)/(mx-mn)); }
+function buildLab(){
+  clearInterval(LAB.timer);
+  var d=LAB.sets[LAB.cur]; track.innerHTML=''; track.style.width=(d.length*84)+'px';
+  d.forEach(function(v,i){
+    var c=document.createElement('div'); c.className='chip'; c.id='chip'+i; c.style.background=labColor(v,d);
+    c.innerHTML='<b>F'+i+'</b><span>'+v+' min</span>'; c.style.left=(i*84)+'px'; track.appendChild(c);
+  });
+  verdict.innerHTML='Flights start in file order, F0 first. Press Sort them.';
+}
+function placeChips(order){ order.forEach(function(idx,pos){ document.getElementById('chip'+idx).style.left=(pos*84)+'px'; }); }
+function runLab(){
+  buildLab();
+  var d=LAB.sets[LAB.cur], snaps=heapSnapshots(d,LAB.stable), i=0;
+  var ms=Math.max(120,Math.min(450,2800/snaps.length));
+  verdict.textContent='Sorting…';
+  LAB.timer=setInterval(function(){
+    i++; if(i>=snaps.length){ clearInterval(LAB.timer); showVerdict(snaps[snaps.length-1],d); return; }
+    placeChips(snaps[i]);
+  },reduced?10:ms);
+}
+function showVerdict(order,d){
+  placeChips(order);
+  var bad={};
+  for(var p=0;p<order.length;p++) for(var q=p+1;q<order.length;q++){
+    if(d[order[p]]===d[order[q]]&&order[p]>order[q]){ bad[order[p]]=1; bad[order[q]]=1; }
+  }
+  var ids=Object.keys(bad);
+  ids.forEach(function(k){ document.getElementById('chip'+k).classList.add('bad'); });
+  var txt=order.map(function(k){return 'F'+k;}).join(', ');
+  verdict.innerHTML=(ids.length===0
+    ? '<span class="yes">Ties kept their file order.</span> '
+    : '<span class="no">Ties got shuffled.</span> Outlined flights have an equal-delay neighbor that jumped ahead of an earlier one. ')+
+    'Result: '+txt+'.';
+}
+function setPressed(a,b,first){ document.getElementById(a).setAttribute('aria-pressed',first); document.getElementById(b).setAttribute('aria-pressed',!first); }
+document.getElementById('vStable').onclick=function(){ LAB.stable=true; setPressed('vStable','vPlain',true); buildLab(); };
+document.getElementById('vPlain').onclick=function(){ LAB.stable=false; setPressed('vStable','vPlain',false); buildLab(); };
+document.getElementById('sSmall').onclick=function(){ LAB.cur='small'; setPressed('sSmall','sBig',true); buildLab(); };
+document.getElementById('sBig').onclick=function(){ LAB.cur='big'; setPressed('sSmall','sBig',false); buildLab(); };
+document.getElementById('sortBtn').onclick=runLab;
+document.getElementById('resetBtn').onclick=buildLab;
+
+/* ---------- Evidence ---------- */
+var METHODS=['insertion','merge','heap','counting'];
+var NAMES={insertion:'Insertion',merge:'Mergesort',heap:'Heapsort',counting:'Counting'};
+var COL={insertion:'#ff6b57',merge:'#34c3ae',heap:'#8fa8ff',counting:'#ffb627'};
+/* entry = [median seconds, comparisons, writes, peak bytes] */
+var SC={ns:[100,500,1000,2500,5000,10000,25000,50000,100000],
+ insertion:[[0.000862,2433,2438,1784],[0.02302,63583,63589,12952],[0.09407,251288,251294,37592],[0.5611,1530744,1530750,109392],[2.248,6152661,6152667,230736],[8.923,24445598,24445605,474032]],
+ merge:[[0.000379,550,1344,3040],[0.002570,3855,8976,20512],[0.005810,8713,19952,49272],[0.01655,25101,56808,132952],[0.03582,55238,123616,274296],[0.07802,120512,267232,557592],[0.2114,333994,734464,1411544],[0.4515,717783,1568928,2836856],[0.9619,1535665,3337856,5593464]],
+ heap:[[0.000484,1024,1158,2488],[0.003642,7380,8056,13752],[0.008270,16832,18134,38512],[0.02347,48802,52126,110192],[0.05127,107766,114416,231536],[0.1123,235407,248464,474832],[0.3133,655081,687908,1208784],[0.6810,1410295,1475674,2434096],[1.472,3020457,3152274,4790704]],
+ counting:[[0.0000387,0,100,3888],[0.000227,0,500,26944],[0.000390,0,1000,51936],[0.000880,0,2500,124752],[0.001722,0,5000,247056],[0.003442,0,10000,492432],[0.008655,0,25000,1229792],[0.01742,0,50000,2459808],[0.03747,0,100000,4819808]]};
+var IO={rows:[['schedule','Original schedule'],['nearly_sorted','Nearly sorted'],['reversed','Reversed']],
+ schedule:{insertion:[9.608,26095921,26095931,473912],merge:[0.07747,120424,267232,557592],heap:[0.1117,235114,247840,474832],counting:[0.003439,0,10000,490960]},
+ nearly_sorted:{insertion:[0.2418,660919,660919,473912],merge:[0.06967,97113,267232,557592],heap:[0.1177,244208,262736,474832],counting:[0.003817,0,10000,491968]},
+ reversed:{insertion:[17.78,49011026,49011321,473912],merge:[0.06419,75367,267232,557592],heap:[0.1075,226210,233020,474832],counting:[0.003230,0,10000,491440]}};
+var KR={rs:[11,101,961,10001,100001],
+ merge:[[0.3681,423913,1568928,2836792],[0.4503,710413,1568928,2836792],[0.4514,717783,1568928,2836792],[0.4474,717783,1568928,2836792],[0.4577,717783,1568928,2836792]],
+ counting:[[0.01649,0,50000,2433512],[0.01670,0,50000,2436248],[0.01638,0,50000,2459864],[0.01839,0,50000,2698424],[0.02909,0,50000,5072888]]};
+
+function fmtSec(v){ if(v<1e-3) return (v*1e6).toFixed(1)+' µs'; if(v<1) return (v*1e3).toFixed(v<0.01?2:1)+' ms'; return v.toFixed(2)+' s'; }
+function fmtNum(v){ if(v>=1e6) return (v/1e6).toFixed(2)+'M'; return Math.round(v).toLocaleString(); }
+function fmtBytes(v){ if(v>=1e6) return (v/1e6).toFixed(2)+' MB'; return (v/1e3).toFixed(1)+' KB'; }
+function fmtN(v){ return v>=1000?(v/1000)+'K':''+v; }
+var MET={time:{i:0,f:fmtSec,label:'Median time'},cmp:{i:1,f:fmtNum,label:'Comparisons'},wr:{i:2,f:fmtNum,label:'Writes'},mem:{i:3,f:fmtBytes,label:'Peak memory'}};
+var EV={exp:'scale',met:'time'};
+var TAKE={
+ scale:'At 10,000 flights insertion sort needs <b>8.92 s</b> and counting sort needs <b>3.4 ms</b>, which is <b>2,592×</b> faster. At 100,000 flights mergesort takes 0.96 s and heapsort 1.47 s. Insertion sort was stopped at 10,000.',
+ order:'Insertion sort swings from <b>0.24 s</b> on nearly sorted input to <b>17.8 s</b> on reversed input at 10,000 flights. The other three barely change with input order.',
+ range:'Counting sort stays faster than mergesort even at 100,001 possible delays (<b>29 ms</b> against 458 ms), but its memory climbs to <b>5.07 MB</b>, above mergesort’s 2.84 MB. That is the case for mergesort when the range may be huge.'
+};
+function niceTicks(max,count){ var raw=max/count,mag=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/mag,step=(f<=1?1:f<=2?2:f<=5?5:10)*mag,t=[]; for(var v=0;v<=max+step*0.01;v+=step) t.push(v); return t; }
+
+function drawLines(host,xs,series,opt){
+  var W=760,H=380,m={l:74,r:24,t:14,b:44},iw=W-m.l-m.r,ih=H-m.t-m.b;
+  var lx0=Math.log10(xs[0]),lx1=Math.log10(xs[xs.length-1]);
+  function X(x){ return m.l+(Math.log10(x)-lx0)/(lx1-lx0)*iw; }
+  var vals=[]; series.forEach(function(s){ s.pts.forEach(function(p){ if(p[1]>0) vals.push(p[1]); }); });
+  var ymin,ymax,ticks=[];
+  if(opt.ylog){ ymin=Math.pow(10,Math.floor(Math.log10(Math.min.apply(null,vals)))); ymax=Math.pow(10,Math.ceil(Math.log10(Math.max.apply(null,vals)))); for(var e=Math.log10(ymin);e<=Math.log10(ymax)+1e-9;e++) ticks.push(Math.pow(10,e)); }
+  else { ymin=0; var mx=Math.max.apply(null,vals); ticks=niceTicks(mx*1.04,4); ymax=ticks[ticks.length-1]; }
+  function Y(v){ return opt.ylog? m.t+ih-(Math.log10(v)-Math.log10(ymin))/(Math.log10(ymax)-Math.log10(ymin))*ih : m.t+ih-(v-ymin)/(ymax-ymin)*ih; }
+  var g='';
+  ticks.forEach(function(t){ var y=Y(t); g+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y+'" y2="'+y+'" stroke="#27394d" stroke-width="1"/><text x="'+(m.l-8)+'" y="'+(y+4)+'" text-anchor="end">'+opt.yf(t)+'</text>'; });
+  xs.forEach(function(x){ g+='<text x="'+X(x)+'" y="'+(H-m.b+18)+'" text-anchor="middle">'+opt.xf(x)+'</text>'; });
+  g+='<text x="'+(m.l+iw/2)+'" y="'+(H-4)+'" text-anchor="middle">'+opt.xlabel+'</text>';
+  series.forEach(function(s){
+    var pts=s.pts.filter(function(p){return opt.ylog?p[1]>0:true;});
+    if(!pts.length) return;
+    g+='<polyline fill="none" stroke="'+COL[s.key]+'" stroke-width="2.5" points="'+pts.map(function(p){return X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1);}).join(' ')+'"/>';
+    pts.forEach(function(p){ g+='<circle cx="'+X(p[0]).toFixed(1)+'" cy="'+Y(p[1]).toFixed(1)+'" r="3.5" fill="'+COL[s.key]+'"/>'; });
+  });
+  g+='<line id="vl" x1="0" x2="0" y1="'+m.t+'" y2="'+(m.t+ih)+'" stroke="#9bb0c4" stroke-width="1" stroke-dasharray="3 3" style="display:none"/>';
+  g+='<rect id="hit" x="'+m.l+'" y="'+m.t+'" width="'+iw+'" height="'+ih+'" fill="transparent"/>';
+  host.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+opt.aria+'">'+g+'</svg>';
+  var svg=host.querySelector('svg'),hit=svg.querySelector('#hit'),vl=svg.querySelector('#vl'),tip=document.getElementById('tip');
+  function move(ev){
+    var r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)/r.width*W,best=0,bd=1e9;
+    xs.forEach(function(x,i){ var d=Math.abs(X(x)-px); if(d<bd){bd=d;best=i;} });
+    var x=xs[best]; vl.setAttribute('x1',X(x)); vl.setAttribute('x2',X(x)); vl.style.display='';
+    var rows=[]; series.forEach(function(s){ var p=s.pts.filter(function(q){return q[0]===x;})[0]; if(p) rows.push([s.key,p[1]]); });
+    rows.sort(function(a,b){return b[1]-a[1];});
+    tip.innerHTML='<div class="h">'+opt.xfull(x)+'</div>'+rows.map(function(rw){ return '<div><span style="color:'+COL[rw[0]]+'">'+NAMES[rw[0]]+'</span><span>'+(rw[1]===0&&EV.met==='cmp'?'none':opt.yf(rw[1]))+'</span></div>'; }).join('');
+    tip.style.display='block';
+    var box=host.parentNode.getBoundingClientRect(),left=ev.clientX-box.left+14; if(left>box.width-190) left=ev.clientX-box.left-190;
+    tip.style.left=left+'px'; tip.style.top=(ev.clientY-box.top-20)+'px';
+  }
+  hit.addEventListener('pointermove',move);
+  hit.addEventListener('pointerdown',move);
+  hit.addEventListener('pointerleave',function(){ tip.style.display='none'; vl.style.display='none'; });
+}
+function drawDots(host,f,i){
+  var W=760,H=250,m={l:130,r:24,t:14,b:44},iw=W-m.l-m.r,rows=IO.rows,rh=(H-m.t-m.b)/rows.length;
+  var vals=[]; rows.forEach(function(r){ METHODS.forEach(function(k){ var v=IO[r[0]][k][i]; if(v>0) vals.push(v); }); });
+  var lo=Math.floor(Math.log10(Math.min.apply(null,vals))),hi=Math.ceil(Math.log10(Math.max.apply(null,vals)));
+  if(hi===lo) hi=lo+1;
+  function X(v){ return m.l+(Math.log10(v)-lo)/(hi-lo)*iw; }
+  var g='';
+  for(var e=lo;e<=hi;e++){ var x=X(Math.pow(10,e)); g+='<line x1="'+x+'" x2="'+x+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="#27394d"/><text x="'+x+'" y="'+(H-m.b+18)+'" text-anchor="middle">'+f(Math.pow(10,e))+'</text>'; }
+  rows.forEach(function(r,ri){
+    var cy=m.t+rh*ri+rh/2;
+    g+='<text x="'+(m.l-10)+'" y="'+(cy+4)+'" text-anchor="end">'+r[1]+'</text><line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+cy+'" y2="'+cy+'" stroke="#27394d" stroke-dasharray="2 4"/>';
+    METHODS.forEach(function(k,ki){ var v=IO[r[0]][k][i]; if(v>0) g+='<circle cx="'+X(v)+'" cy="'+(cy+(ki-1.5)*7)+'" r="5.5" fill="'+COL[k]+'"><title>'+NAMES[k]+': '+f(v)+'</title></circle>'; });
+  });
+  g+='<text x="'+(m.l+iw/2)+'" y="'+(H-4)+'" text-anchor="middle">log scale, 10,000 flights</text>';
+  host.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Dot plot of each algorithm for three input orders">'+g+'</svg>';
+}
+function renderTable(){
+  var h=document.getElementById('tblHost'),f=MET[EV.met].f,i=MET[EV.met].i,html='';
+  if(EV.exp==='order'){
+    html='<table><thead><tr><th>Input order</th>'+METHODS.map(function(k){return '<th>'+NAMES[k]+'</th>';}).join('')+'</tr></thead><tbody>'+
+      IO.rows.map(function(r){ return '<tr><td>'+r[1]+'</td>'+METHODS.map(function(k){ var v=IO[r[0]][k][i]; return '<td>'+((v===0&&EV.met==='cmp')?'none':f(v))+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table>';
+  } else if(EV.exp==='range'){
+    html='<table><thead><tr><th>Possible delays (R)</th><th>Mergesort</th><th>Counting</th></tr></thead><tbody>'+
+      KR.rs.map(function(r,ri){ return '<tr><td>'+r.toLocaleString()+'</td><td>'+f(KR.merge[ri][i])+'</td><td>'+((KR.counting[ri][i]===0&&EV.met==='cmp')?'none':f(KR.counting[ri][i]))+'</td></tr>'; }).join('')+'</tbody></table>';
+  }
+  h.innerHTML=html;
+}
+function renderEvidence(){
+  var host=document.getElementById('chart'),M=MET[EV.met],i=M.i,keys=document.getElementById('keys');
+  document.getElementById('tip').style.display='none';
+  var use=EV.exp==='range'?['merge','counting']:METHODS;
+  keys.innerHTML=use.map(function(k){ return '<span><i style="background:'+COL[k]+'"></i>'+NAMES[k]+'</span>'; }).join('')+(EV.met==='cmp'&&use.indexOf('counting')>=0?'<span style="color:var(--mute)">Counting sort makes no comparisons</span>':'');
+  if(EV.exp==='scale'){
+    var series=METHODS.map(function(k){ return {key:k,pts:SC[k].map(function(e,j){return [SC.ns[j],e[i]];})}; });
+    drawLines(host,SC.ns,series,{ylog:true,yf:M.f,xf:fmtN,xfull:function(x){return x.toLocaleString()+' flights';},xlabel:'flights (log scale)',aria:M.label+' by number of flights for four sorting algorithms, log scale'});
+  } else if(EV.exp==='range'){
+    var s2=['merge','counting'].map(function(k){ return {key:k,pts:KR[k].map(function(e,j){return [KR.rs[j],e[i]];})}; });
+    drawLines(host,KR.rs,s2,{ylog:false,yf:M.f,xf:function(x){return x.toLocaleString();},xfull:function(x){return 'R = '+x.toLocaleString();},xlabel:'possible delay values R, 50,000 flights (log scale)',aria:M.label+' for mergesort and counting sort as the delay range grows'});
+  } else {
+    drawDots(host,M.f,i);
+  }
+  renderTable();
+  document.getElementById('take').innerHTML=TAKE[EV.exp];
+}
+Array.prototype.forEach.call(document.querySelectorAll('#expSeg button'),function(b){ b.onclick=function(){ EV.exp=b.dataset.exp; Array.prototype.forEach.call(document.querySelectorAll('#expSeg button'),function(x){x.setAttribute('aria-pressed',x===b);}); renderEvidence(); }; });
+Array.prototype.forEach.call(document.querySelectorAll('#metSeg button'),function(b){ b.onclick=function(){ EV.met=b.dataset.met; Array.prototype.forEach.call(document.querySelectorAll('#metSeg button'),function(x){x.setAttribute('aria-pressed',x===b);}); renderEvidence(); }; });
+
+buildLab();
+renderEvidence();
+resetRace(false);
+</script>
+</body>
+</html>
