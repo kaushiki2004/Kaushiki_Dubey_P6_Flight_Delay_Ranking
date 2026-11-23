@@ -46,6 +46,7 @@ The benchmark writes CSV results and environment details to `results/`. The plot
 - `results/`: measured CSV results and figures
 - `report/`: final report and office-discussion notes
 - `slides/`: presentation
+- `flight_delay_race_demo.html`: interactive demo of the four algorithms and the benchmark results
 
 The report opens with the required one-page recommendation comparing all four algorithms.
 
@@ -58,10 +59,20 @@ The report opens with the required one-page recommendation comparing all four al
 5. Submit the GitHub repository link through the course's designated submission channel before 11:59 p.m. on November 22, 2026.
 6. Bring the repository, code, report, and presentation to the office discussion on November 23 or 24.
 
+## Interactive demo
+
+`flight_delay_race_demo.html` is a self-contained page. Open it in any browser; it works offline, and web fonts load only when a connection is available. It lets you:
+
+- race the four algorithms side by side with live comparison and write counters,
+- compare plain heapsort with the original-position tie-break on the same flights,
+- explore the results in `results/` as interactive charts.
+
+The page re-implements the four algorithms in JavaScript for visualization only. The graded implementation is `starter/my_solutions.py`, and every reported measurement comes from the Python benchmark.
+
 ## Data source
 
 The assignment supplied synthetic datasets generated from fixed random seeds. The package includes `generate_data.py` so the data can be reproduced. No external dataset was required.
 
 ## Assistance disclosure
 
-AI assistance supported planning, code review, document drafting, and presentation preparation. The student reviewed the algorithms, tests, measurements, and explanations and remains responsible for being able to trace and modify the code during the office discussion.
+AI assistance supported planning, code review, document drafting, and presentation preparation. The student reviewed the algorithms, tests, measurements, and explanations and remains responsible for being able to trace and modify the code during the office discussion. AI assistance also supported the interactive demo (`flight_delay_race_demo.html`).
